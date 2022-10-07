@@ -1,0 +1,976 @@
+---
+title: "Recommendation System - Data Science Project for Movies"
+subtitle:  "HarvardX Professional Certificate in Data Science Program"
+author: "Charles A. Hulebak"
+output:
+  html_document:
+    df_print: paged
+    number_sections: no
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    theme: simplex
+  pdf_document:
+    citation_package: natbib
+    df_print: kable
+    fig_crop: no
+    latex_engine: xelatex
+    number_sections: no
+    toc: yes
+    toc_depth: 3
+  word_document: default
+geometry:
+- top=2.5cm
+- bottom=2.5cm
+- left=2.5cm
+- right=2.5cm
+- heightrounded
+highlight-style: haddock
+linkcolor: red
+mainfont: Arial
+fontsize: 12pt
+sansfont: Verdana
+documentclass: report
+urlcolor: red
+theme: journal
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Preface {-} 
+
+This project is for HarvardX's Data Science Professional Certificate program, Movielens capstone project. 
+
+The publication of this document is also available in code format on [GitHub](https://github.com/charles-a-h/
+Data-Science-and-Analysis-Projects), as well as accessible in HTML format from [RPubs](https://rpubs.com/charlesah/recommender_system).
+
+```{r warning=TRUE, message=FALSE, out.width='100%', fig.align = 'center', echo=FALSE}
+knitr::include_graphics("01-Images/popcorn.jpg", dpi = 150)
+```
+
+# Introduction and Project Overview
+
+Many of the most popularized data science methods originate from machine learning, in which a variety of algorithms are built to extract insights from data.^1^  Recommendation systems, which are a type of machine learning, have been popularized for a variety of business products to align customer's interests with satisfaction, leading to a higher rate of retention, sales, growth, and revenue.  
+
+There are three primary broad groups of recommendation systems, which include:
+
+1. **Content-based systems:** that examine properties of the items recommended
+1. **Collaborative filtering systems:** that recommend items based on similarity measures between users and/or items
+1. **Hybrid systems:** combine attributes from both 
+
+Examples of recommendation systems have been popularized on the internet by using your computer browser's cache and history, and other methods and used by advertisement companies that will use keywords and data to present product recommendations when you access websites.  Cloud-based companies such as Amazon will seek to present alternative, associative, or combinations of items during your shopping experience.  Online movie streaming services such as Netflix, HBOGo, and others have popularized recommendation systems based on previous shows you have watched as well as sampled ratings from user groups.  Netflix incentivized a reward to improve their recommendation system by 10% in 2006, known as the "Netflix Challenge".^2,3^  All of these examples and the use of recommendation systems are critical success factors to drive economic growth for these companies.
+
+The objective for this project is to use the MovieLens (ML-10) dataset^4^, while utilizing machine learning algorithms and formulas to develop a movie recommendation system.  This project will use a collaborative filtering recommender system.  The initial objective is to build a recommender system that will provide the most accurate predictions, then we would like to use this system to choose a genre, or a combination of genres, then have a user’s interest populate with the top 20 list of movies to choose from based on the reviewer ratings.  The reviewer ratings are scaled from 1 to 5, with 1 being the lowest and 5 the highest.  The process of users watching movies (or previously watched movies) may also encourage individuals to submit their own review from MovieLens ratings by agreeing, or disagreeing and providing a rating of their own.  
+
+# The MovieLens (ML-10) dataset
+
+The University of Minnesota established the GroupLens research lab, which has collected data and created datasets for thousands for movies, and millions of ratings by users.  Although there are larger datasets that are publicly available, we will use the MovieLens (ML-10) dataset.  This dataset includes 10,000,054 ratings and 95,580 tags applied to 10,681 movies by 71,567 users through the online recommender service MovieLens.^5^
+
+# Analysis & Methods 
+
+The objective of using this recommendation system is to develop the highest accuracy recommender system from an algorithm which predicts outcomes based on the features that we establish.  The algorithms explained within this project will be trained using a data set in which we do not know the outcome, and apply the algorithm to make future predictions.
+
+There are several loss functions to calculate the regression loss, which include the mean Absolute Error (MAE, also known as the L1 Loss), Mean Square Error (MSE, also known as Quadratic Loss, or L2 Loss), Mean Bias Error (MBE), Root Mean Square Logarithmic Error (RMSLE), Huber Loss/Smooth Mean Absolute Error, Log cosh Loss, and Residual Mean Squared Error (RMSE).^6,7,8^ However, due to time constraints of testing the best loss function, we will focus on measuring the typical error loss function to measure the genre winners (for our movie choice) based on the RMSE on the test set.  RSME was used for the winner of the Netflix Challenge, and the formula is defined as:
+
+$$RMSE=\sqrt{\frac{1}{N}\sum_{u,i}(\hat{y}_{u,i}-y_{u,i})^2}$$
+
+$y_{u,i}$ is the rating of movie $i$ by user $u$ and denote our prediction with $\hat{y}_{u,i}$.  $N$ is the number of ratings/genre combinations and the the sum occuring over all the combinations.  Our initial objective of using RSME is to miminize the loss, which will produce the most accurate predictions.
+
+# Machine Learning Process
+The first step of this project includes downloading the data and preparing it to be processed and analyzed.  Next, we will explore this data to understand the content, features, and how we can use it to develop predictions.  The third step will include cleaning the data to remove unnecessary information and speed up the prediction process.  Lastly, we will analyze the data and make predictions based upon the content.
+
+## Download relevant libraries and the dataset, followed by preparing data for processing
+In this sequence of steps we will install and import appropriate libraries, download the data set, create the movies dataframe, and join the data files.    
+
+We will separate the data into the test, training, and validations sets.  An 80/20 data partition split is generally used for training and test data, which is based on the Pareto rule, however we will use a 90/10 partition split.  The training data is used to build the model, in which our analysis will be conducted.  The test data will use a portion of the data to test the training data, and lastly the validation data is used to calculate the final regression loss using RMSE.
+
+**Installations**
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+# if(!require(dplyr))install.packages("dplyr", repos = "http://cran.us.r-project.org")
+library(dplyr, warn.conflicts = FALSE)
+options(dplyr.summarise.inform = FALSE)
+
+# Install libraries
+if(!require(tidyverse)) 
+  install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) 
+  install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) 
+  install.packages("data.table", repos = "http://cran.us.r-project.org")
+
+# Import Libraries
+library(tidyverse)
+library(caret)
+library(data.table)
+
+# Download the MovieLens 10M dataset:
+# Reference: https://grouplens.org/datasets/movielens/10m/
+# Source: http://files.grouplens.org/datasets/movielens/ml-10m.zip
+dl <- tempfile() #or if downloaded path to dataset
+
+# remove "#" to download dataset
+download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+# Define ratings and movies from the dataset
+ratings <- fread(text = gsub("::", "\t", 
+                 readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))  
+
+movies <- str_split_fixed(readLines(unzip(dl, 
+                                          "ml-10M100K/movies.dat")), "\\::", 3)
+
+colnames(movies) <- c("movieId", "title", "genres")
+
+# Create the movies dataframe from the movieID, title, and genres
+movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(movieId),
+                                           title = as.character(title),
+                                           genres = as.character(genres))
+
+# Join the datafiles and define as the movielens
+movielens <- left_join(ratings, movies, by = "movieId")
+
+# Create the test index, which will encompass 10% of the MovieLens data, 
+# then define training and test data
+set.seed(1, sample.kind="Rounding") # if R 3.5 or earlier, use `set.seed(1)`
+test_index <- createDataPartition(y = movielens$rating,
+                                  times = 1, p = 0.1, list = FALSE)
+train_data <- movielens[-test_index,] #renamed from test_data
+temp_data <- movielens[test_index,]   #renamed from temp_data
+
+# Name the validation data by creating joins with specified training data
+test_data <- temp_data %>% 
+  semi_join(train_data, by = "movieId") %>%
+  semi_join(train_data, by = "userId")
+
+# Add  removed rows from the validation set into the train data set 
+removed <- anti_join(temp_data, test_data)
+
+train_data <- rbind(train_data, removed)
+
+rm(test_index, temp_data, removed) 
+
+head(movielens)
+```
+
+## Data Exploration
+
+### The Dataset
+Let's begin with looking at the data that we have downloaded so we have a better idea of how to build our model:
+```{r warning=FALSE, message=FALSE, out.width='30%', fig.align = 'center'}
+str(train_data)
+```
+**Testing data set structure and features:**
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+head(train_data)
+```
+**Training data sets rows and columns:**
+```{r}
+# training data
+dim(train_data)
+```
+## Data Characteristics
+The movie title and movieId are target variables in which the remainder of the variables describe.  Now that we understand the data content, we will explore the following characteristics within the training data in greater detail:
+
+1. **Data characteristics:** number of users, movies, and genres 
+1. **Timestamp:** the duration of the data collection
+1. **Genre:** the labels associated with the movie data
+1. **Rating:** distribution of user ratings for the movies
+1. **UserId:** which users rated movies more often and their ratings
+
+**Number of distinct Users within the dataset (variables between 1 or more genre combinations):**
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+UniqueUsers <- length(unique(train_data$userId))
+UniqueUsers
+```
+**Number of Movies within the dataset (variables between 1 or more genre combinations):**
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+UniqueMovie <- length(unique(train_data$movieId))
+UniqueMovie
+```
+**Number of distinct Genres within the dataset (variables between 1 or more genre combinations):**
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+Uniquegenres<- length(unique(train_data$genres))
+Uniquegenres
+```
+
+**Timestamp**
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+if(!require(lubridate)) 
+  install.packages("lubridate", repos = "http://cran.us.r-project.org")
+library(lubridate)
+tibble(`Date of First Movie in Dataset` = 
+         date(as_datetime(min(train_data$timestamp))),
+       `Date of Last Movie in Dataset` = 
+         date(as_datetime(max(train_data$timestamp)))) %>%
+        mutate(Duration = 
+         duration(max(train_data$timestamp)-min(train_data$timestamp)))
+```
+It appears that the first movie in the data set was rated in 1995, whereas the last was in 2009, spanning nearly 14 years for ratings within the MovieLens (ML-10) data set (training set).
+
+**This visualization shows us the distribution of ratings across the duration of years:**
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+if(!require(ggthemes)) 
+  install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+library(ggthemes)
+train_data %>% mutate(year = year(as_datetime(timestamp))) %>%
+  ggplot(aes(x=year), ratings) +
+    geom_bar(width = .5, fill="gray", color="black") + 
+    ggtitle("Annual User Ratings by Year") +
+    xlab("Year") +
+    ylab("Number of Ratings") +
+    theme_bw() +
+    coord_flip() +
+    theme(axis.text.x = element_text(angle=90, vjust=0.6))
+```
+**Genres**
+
+There are 19 unique genres, as well as no genres listed, which are classified independently or in combination with other genres: 
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+tibble(count = str_count(train_data$genres, fixed("|")),
+  genres = train_data$genres) %>%
+  group_by(count, genres) %>%
+  summarise('Quantity of Movies by Genre' = n()) %>%
+  head(20)
+```
+This data shows that the highest genres (which may be a included in conjunction with others) are drama, followed by comedy, then thrillers.
+
+**Rating**
+
+Movies may be rated between 1 and 5 stars, which includes half-increments.
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+train_data %>% 
+  group_by('User Ratings - Stars' = rating) %>% 
+  summarize('Number of Ratings' = n())
+```
+**Rating data visualization:**
+```{r warning=FALSE, message=FALSE, out.width='90%', fig.align = 'center'}
+if(!require(ggplot2)) 
+  install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+library(ggplot2)
+train_data %>% group_by(rating) %>% 
+  summarise(count=n()) %>%
+  ggplot(aes(x = rating, y = count)) + 
+  ggtitle("User Ratings (Stars)") + 
+  xlab("Ratings (Stars)") +
+  ylab("Count of Ratings") +
+  geom_segment(aes(x=rating, xend=rating, y=0, yend=count), 
+               size=1, color="blue", linetype = "dotted") +
+  geom_point(size=3, color="orange", fill=alpha("orange", 0.3), 
+             alpha=0.7, shape=8, stroke=2) + 
+  theme_bw()
+```
+The data shows that 4 stars were given the most often, followed by 3 stars, then 5. Half increment ratings were given less frequently.
+
+**Now, let's correlate the genre data with the associated ratings**
+These are the most popular genres by ratings:
+```{r fig.align='center', out.width='90%', fig.align = 'center'}
+train_data %>% group_by(genres) %>%
+  summarize(n = n(), avg = mean(rating), se = sd(rating)/sqrt(n())) %>%
+  filter(n >= 100000) %>% 
+  mutate(genres = reorder(genres, avg)) %>%
+  ggplot(aes(x = genres, y = avg, ymin = avg - 2*se, ymax = avg + 2*se)) +
+  geom_segment(aes(xend=genres, yend=3), size = 5, color="gray") +
+  ggtitle("Most popular genres by ratings") +
+  xlab("Genres") +
+  ylab("Average Rating") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 65, hjust = 1))
+```
+**UserId**
+
+We previously explored the user data, we determined that there are over 69,000 users in the training set. 
+```{r}
+length(unique(train_data$userId)) # Obtain quantity of users in training set
+```
+However, now we should consider which users rated movies more often and how they rated the movies:
+
+**Most ratings by userId:**
+```{r out.width='90%', fig.align = 'center'}
+train_data %>% group_by(userId) %>%
+  summarise(n = n()) %>%
+  arrange(desc(n)) %>%
+  head(10)
+```
+**Least ratings by userId:**
+
+```{r out.width='90%', fig.align = 'center'}
+train_data %>% group_by(userId) %>%
+  summarise(n = n()) %>%
+  arrange(desc(n)) %>%
+  tail(10)
+```
+It appears that some users rated movies more often, whereas other users rated less than ten movies.
+
+**This informational visualization indicates the frequency of movie ratings by users, let's look at the distribution with a histogram:**
+```{r out.width='90%', fig.align = 'center'}
+train_data %>% group_by(userId) %>%
+  summarise(n=n()) %>%
+  ggplot(aes(n)) +
+    geom_histogram(color = "black", fill="gray") +
+    scale_x_log10() + 
+    ggtitle("How Often Users Rate Movies") +
+    xlab("Number of Ratings") +
+    ylab("Number of Users") + 
+    theme_bw()
+```
+The user ratings appear to be skewed to the right, which indicates that some users are rating movies more often, and others rated movies less often, which we explored previously.
+
+## Data Strategy 
+
+Now that we have a better understanding of the dataset, we need to assess the type of data that we are seeking to analyze to increase our efficiency.  These measures will speed up the data processing time by decreasing the model complexity.  
+
+For this project, we are interested in the ability to select 20 of the top movies from the genres based on user ratings.  These selections will provide the ability to choose a movie from the list.  If we have watched all of the movies on the list, we can modify the top movie list to include additional movies (i.e. top 50, 100, and so on).
+
+Our initial step is to build the recommendation system while seeking to use the lowest RMSE possible.  
+
+**Define RSME:**
+```{r}
+# Define Root Mean Squared Error (RMSE)
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+```
+## Creating our Model
+Let's begin with creating a simple model for the recommendation system, followed by more complexity.
+
+The objective of our recommendation system is to generate a model that will make the best (highest rated) recommendations possible.  This can be achieved by using various regression loss algorithms and tuning various model parameters to make predictions.
+
+Initially, we will take a sample of movies shown in a matrix, and recognize that some users did not rate movies (shown as "NA"): 
+```{r}
+movie_Id <- train_data %>%
+     dplyr::count(movieId) %>%
+     top_n(5) %>%
+     pull(movieId)
+table_1 <- train_data  %>%
+     filter(userId %in% c(13:20)) %>% 
+     filter(movieId %in% movie_Id) %>% 
+     select(userId, title, rating) %>% 
+     spread(title, rating)
+table_1
+```
+Next, let's visualize the entire data set to see that there are many NAs in the table by taking a sample from 1000 users:
+```{r fig.align='center', out.width='90%'}
+users <- sample(unique(train_data$userId), 1000)
+data <- train_data %>% filter(userId %in% users) %>% 
+  select(userId, movieId, rating) %>%
+  mutate(rating = NA) 
+
+ggplot(data, aes(userId, movieId, fill = rating)) + 
+  geom_point(shape = 21, fill = "blue", size = .25, alpha = .25) +
+    ggtitle("Sample of NAs Associated with Movies in the Dataset") +
+    xlab("User ID") +
+    ylab("Movie ID") + 
+    theme_bw()
+```
+It appears that some users provided more NAs than others, and it is difficult to assess why they exist.  In addition, some movieIDs were more prone to having NAs than others.  Our objective with tuning the recommendation system is seeking to fill in as many of the NAs as possible to optimize the recommender system.
+
+## Recommender System Optimization
+Now, let's create our recommendation system to minimize this loss function.  We will build a series of models with an objective to build the most accurate recommendation system while minimizing losses.  Our objective is to minimize the loss, which is reflected with the lowest possible RMSE as possible; an RMSE > 1 is not a good recommendation system.
+
+First, we'll begin by omitting data that is unnecessary for our analysis, in this case we will not include the timestamp:
+```{r fig.height=1}
+train_data <- train_data %>% select(userId, movieId, rating, title, genres)
+test_data <- test_data %>% select(userId, movieId, rating, title, genres)
+```
+
+### Define RMSE and determine the average 
+```{r message=FALSE, out.width='90%', fig.align = 'center'}
+mu <- mean(train_data$rating)
+rmse_mu <- RMSE(test_data$rating, mu)
+rmses <- data_frame(method = "Average", RMSE = rmse_mu)
+rmses
+```
+That average RMSE is relatively high, and we will need to improve it for making better recommendations.
+
+## Simplest Model
+
+The simplest model that assumes the same rating for all movies and users explained by random variation uses the formula:
+
+$$Y_{u,i}=\mu+\epsilon_{u.i}$$
+where $\epsilon_{i,u}$ independent errors sampled from the distribution centered at 0, and $mu$ the "true" rating for the movies.  RMSE is increased with values other than the mean.
+
+### Create the predictor from the training set ratings:
+```{r}
+mu_hat <- mean(train_data$rating)
+mu_hat
+```
+### Movie Effects Bias
+As we know, some movies are favored over others and have a higher rating.  To compensate for this, we introduce the variable $b_i$ which is referred to as the bias.  This formula is as follows:
+
+$$Y_{u,i}=\mu + b_i + \epsilon_{u,i}$$
+The following code may be used, which will take the least squares estimate $b_i$ as the average $Y_{u,i}$ for each movie {i} (penalizing least squares):
+```{r out.width='90%', fig.align = 'center'}
+# Movie effects bias
+m_e_bias <- train_data %>% 
+  group_by(movieId) %>% 
+  summarize(b_i = mean(rating - mu))
+head(m_e_bias)
+```
+**Movie Effect Histogram:**
+```{r fig.align='center', out.width='90%'}
+ME_hist <- train_data %>% 
+  group_by(movieId) %>% 
+  summarize(b_i = mean(rating - mu)) %>% 
+  filter(n()>=100) %>%
+  ggplot(aes(b_i)) + 
+    geom_histogram(color = "black", fill="gray") +
+    ggtitle("Movie Effect Distribution Histogram") +
+    xlab("Movie Bias") +
+    ylab("Movie Count") +
+    theme_bw()
+plot(ME_hist)
+```
+Let's see how the movie bias improves the RMSE for the recommendation system predictions:
+```{r message=FALSE}
+movie_bias_predict <- mu + test_data %>% 
+  left_join(m_e_bias, by = 'movieId') %>%
+  .$b_i
+rmse_average <- RMSE(movie_bias_predict, test_data$rating)
+rmses <- bind_rows(rmses,
+                          tibble(method="Movie Bias Effect",
+                                     RMSE = rmse_average))
+rmses
+```
+### User Effects Bias
+Our RMSE is improving, however let's see if the User Effects Bias will improve recommendations.  This is the formula we will use, adding the user effects variable to the previous formula: 
+
+$$Y_{u,i}=\mu+b_i+b_u+\epsilon_{u,i}$$
+```{r message=FALSE}
+u_e_bias <- train_data %>% 
+  left_join(m_e_bias, by = 'movieId') %>%
+  group_by(userId) %>%
+  summarize(b_u = mean(rating - mu - b_i))
+
+u_e_predict <- test_data %>% 
+  left_join(m_e_bias, by='movieId') %>%
+  left_join(u_e_bias, by='userId') %>%
+  mutate(pred = mu + b_i + b_u) %>%
+  .$pred
+
+model_results_u_e <- RMSE(u_e_predict, test_data$rating)
+rmses <- bind_rows(rmses,
+                          tibble(method="User Bias Effect",
+                                      RMSE = model_results_u_e))
+rmses
+```
+The user effect is normally distributed.
+```{r message=FALSE, fig.align='center', out.width='90%'}
+UE_hist <- train_data %>% 
+  group_by(userId) %>% 
+  summarize(b_u = mean(rating)) %>% 
+  filter(n()>=100) %>%
+  ggplot(aes(b_u)) + 
+    geom_histogram(color = "black", fill="gray") +
+    ggtitle("User Effect Distribution Histogram") +
+    xlab("User Bias") +
+    ylab("User Count") +
+    theme_bw()
+plot(UE_hist)
+```
+There is variability across users, showing that some users rated movies with low scores whereas others rated every movie with a high score.  The user effect seeks to more accurately predict approximations by computing both $\hat u$ and $\hat b_i$, and estimating $\hat b_u$ as the average of $y_{u,i} - \hat u - \hat b_i$.
+
+Although the RMSE is improving for the recommendation system, we would like to introduce the genres effect, as well as regularization to tune the model by adding the penalty factor $lambda$.  
+
+## Genre Bias Effect
+
+Let's see how the genres effect our predictions.  Comparatively to the previous movie and user effects bias, we will add the genres using the following formula:
+
+$$Y_{u,i}=\mu+b_i+b_u+b_g+\epsilon_{u,i}$$
+```{r message=FALSE}
+b_g_bias <- train_data %>% 
+  left_join(m_e_bias, by = 'movieId') %>%
+  left_join(u_e_bias, by = 'userId') %>%
+  group_by(genres) %>%
+  summarize(b_g = mean(rating - mu - b_i - b_u))
+
+b_g_predict <- test_data %>% 
+  left_join(m_e_bias, by = 'movieId') %>% 
+  left_join(u_e_bias, by='userId') %>%
+  left_join(b_g_bias, by='genres') %>%
+  mutate(pred = mu + b_i + b_u + b_g) %>%
+  .$pred
+
+model_results_g_e <- RMSE(b_g_predict, test_data$rating)
+rmses <- bind_rows(rmses,
+                          tibble(method="Genres Bias Effect",
+                                      RMSE = model_results_g_e))
+rmses
+```
+The genres effect is normally distributed, while slightly skewed to the right.  It appears that users has a bias to rate some genres higher than others.
+```{r message=FALSE, fig.align='center', out.width='90%'}
+GE_hist <- train_data %>% 
+  group_by(genres) %>% 
+  summarize(g_e = mean(rating)) %>% 
+  filter(n()>=100) %>%
+  ggplot(aes(g_e)) + 
+    geom_histogram(color = "black", fill="gray") +
+    ggtitle("Genres Effect Distribution Histogram") +
+    xlab("Genres Bias") +
+    ylab("User Count") +
+    theme_bw()
+plot(GE_hist)
+```
+### Regularization
+
+Now that we have tuned this model with both the movie bias, user bias, and genre bias, we notice that our RMSE has improved.  Let's initially explore the mistakes that were created by adding the bias, then determine how to correct this with regularization.
+
+**10 largest mistakes:**
+```{r message=FALSE, fig.align='center', out.width='90%'}
+# Using movie effects bias only, showing larger error rate
+mistakes <- test_data %>%
+  left_join(m_e_bias, by='movieId') %>%
+  mutate(residual = rating - (mu + b_i)) %>%
+  arrange(desc(abs(residual))) %>%
+  distinct(title)
+mistakes[1:10]
+```
+**Now lets look at the 10 best and worst ranked movies according to the movie bias:**
+```{r message=FALSE}
+movie_titles <- movielens %>% 
+  select(movieId, title) %>%
+  distinct()
+```
+**Top 10 best movies:**
+```{r message=FALSE}
+# Using movie effects bias only, showing larger error rate
+best <- m_e_bias %>% left_join(movie_titles, by="movieId") %>%
+  arrange(desc(b_i)) %>%
+  pull(title)
+best[1:10]
+```
+**10 worst movies:**
+```{r message=FALSE}
+# Using movie effects bias only, showing larger error rate
+worst <- m_e_bias %>% left_join(movie_titles, by="movieId") %>%
+  arrange(b_i) %>%
+  pull(title)
+
+worst[1:10]
+```
+There are a few of these movies that we may be familiar with, however this doesn't seem right for a recommendation system!  Let's explore a little further, then figure out how to performance tune this model.
+
+**Frequency of best rated movies:**
+```{r message=FALSE}
+# Using movie effects bias only, showing larger error rate
+freq <- train_data %>% count(movieId) %>%
+  left_join(m_e_bias, by="movieId") %>%
+  left_join(movie_titles, by="movieId") %>%
+    arrange(desc(b_i)) %>%
+  pull(n)
+
+freq[1:10]
+```
+This data doesn't make sense - there are few users associated with ratings for the best movies.  If we explored the worst movies, we would see that the same condition holds true.
+
+## Using Regularization to Tune the Model
+
+With the use of regularization we can further improve the model by penalizing large estimates that are focused on small sample sizes.  It is similar to the Bayesian approach which shrinks predictions.  The ability to penalize estimates provides the ability to control the variability of the movie effects, instead of minimizing the least squares equation. We use the training set to tune the model (the test set should never be used).
+
+We minimize an equation that adds a penalty using the following formula, where the first term is least squares and the second is a penalty that gets larger when many {b_i} are large:
+
+$$\frac{1}{N}\sum_{u,i}({y}_{u,i} - {µ} - {b}_{i})^2 + \lambda \sum_{i} {b}_{i}^2$$
+
+The most effective use of using $lambda$ is to use different values and run several simulations to minimize the RMSE.
+
+We will begin with choosing a set of $lambda$ to tune the model, while using the best performing RMSE model to make our predictions (user bias model - which included the baseline and movie effects).  In the subsequent step we will optimize $lambda$:
+```{r message=FALSE, fig.align='center', out.width='90%'}
+# Define lambdas penalty to tune the model
+lambdas <- seq(0, 10, 0.25)
+
+# Define RMSE as a function of mu, b_i, b_u, and predicted ratings
+lambda_tune <- sapply(lambdas, function(l){
+  
+  mu <- mean(train_data$rating)
+  
+  b_i <- train_data %>%
+    group_by(movieId) %>%
+    summarize(b_i = sum(rating - mu)/(n()+l))
+  
+  b_u <- train_data %>%
+    left_join(b_i, by="movieId") %>%
+    group_by(userId) %>%
+    summarize(b_u = sum(rating - b_i - mu)/(n()+l))
+  
+  b_g <- train_data %>% 
+  left_join(b_i, by = 'movieId') %>%
+  left_join(b_u, by = 'userId') %>%
+  group_by(genres) %>%
+  summarize(b_g = mean(rating - mu - b_i - b_u)/(n()+l)) 
+  
+  predicted_ratings <-
+    test_data %>%
+    left_join(b_i, by = "movieId") %>%
+    left_join(b_u, by = "userId") %>%
+    left_join(b_g, by = "genres") %>%
+    mutate(pred = mu + b_i + b_u + b_g) %>%
+    pull(pred)
+    
+  return(RMSE(predicted_ratings, test_data$rating))
+})
+```
+**Let's choose the best $lambda$ and penalty term that best fits the model using cross-validation, which will provide the lowest RMSE:**
+```{r}
+best_lambda <- lambdas[which.min(lambda_tune)]
+best_lambda
+
+best_penalty <- min(lambda_tune)
+best_penalty 
+```
+**Lambda Plot**
+```{r}
+reg_tune_lambda <- tibble(Lambda = lambdas, RMSE = lambda_tune) %>%
+  ggplot(aes(x = Lambda, y = RMSE)) +
+  geom_point(shape=21, color="black", fill="grey", size=3) +
+  geom_line(color="grey") +
+  geom_point(aes(y = best_penalty, x = best_lambda, color = 'red'), 
+             shape = 10, size = 7, stroke = 1.2) +
+  ggtitle("Regularization", 
+            subtitle = "Choose penalization that provides the lowest RMSE") +
+  xlab("Lambdas") +
+  ylab("RMSE") + 
+  theme(legend.position = 'none')
+
+plot(reg_tune_lambda)
+```
+
+**Let's use the previous model, this time choosing the smallest $lambda$, then see how the RMSE improves:**
+
+```{r message=FALSE}
+rmses <- bind_rows(rmses, 
+                   tibble(method="Regularization", 
+                                 RMSE = min(lambda_tune)))
+rmses 
+```
+This appears to be a small improvement, however it should correlate to significant improvements to our recommendations.  
+
+### Tuned Recommender System
+
+Let's apply the best $\lambda$ to make predictions using regularization:
+```{r message=FALSE}
+# Choose the mimimum lambda
+lambda <- lambdas[which.min(lambda_tune)]
+
+# Take the mean of mu   
+mu <- mean(train_data$rating)
+
+# Movie effect bias
+b_i <- train_data %>% 
+  group_by(movieId) %>%
+  summarize(b_i = sum(rating - mu)/(n()+lambda))
+
+# User effect bias
+b_u <- train_data %>% 
+  left_join(b_i, by="movieId") %>%
+  group_by(userId) %>%
+  summarize(b_u = sum(rating - b_i - mu)/(n()+lambda))
+
+# Genre effect bias
+b_g <- train_data %>% 
+  left_join(b_i, by = 'movieId') %>%
+  left_join(b_u, by = 'userId') %>%
+  group_by(genres) %>%
+  summarize(b_g = mean(rating - mu - b_i - b_u)/(n()+lambda)) 
+
+# Prediction
+predict_reg <- train_data %>% 
+  left_join(b_i, by = "movieId") %>%
+  left_join(b_u, by = "userId") %>%
+  left_join(b_g, by = "genres") %>%
+  mutate(pred = mu + b_i + b_u + b_g) %>%
+  pull(pred)
+```
+**Top 10 movies:**
+```{r}
+train_data %>%
+  left_join(b_i, by = "movieId") %>%
+  left_join(b_u, by = "userId") %>% 
+  left_join(b_g, by = "genres") %>%
+  mutate(pred = mu + b_i + b_u + b_g) %>% 
+  arrange(-pred) %>% 
+  group_by(title) %>% 
+  distinct(title) %>%
+  head(10)
+```
+These seem like more accurate predictions based upon the user ratings.  
+
+**Worst 10 recommended movies:**
+```{r}
+train_data %>%
+  left_join(b_i, by = "movieId") %>%
+  left_join(b_u, by = "userId") %>% 
+  left_join(b_g, by = "genres") %>%
+  mutate(pred = mu + b_i + b_u + b_g) %>% 
+  arrange(pred) %>% 
+  group_by(title) %>% 
+  distinct(title) %>%
+  head(10)
+```
+These selections look much more accurate, although we might not be familiar with some of the titles.
+
+## Movie Selection by Genre - Which Movie Should I Watch Tonight? 
+
+Let's use high selectivity with our criteria to ensure that we are making good use of our time. We have the ability to filter by any of the factors within the dataset, such as the timeframe, number of ratings, and others.  For tonight's movie we will utilize the entire dataset, while having 20 selections from a few genres of choice:
+
+**Action:**
+```{r message=FALSE, out.width='90%'}
+movielens %>% 
+  filter(str_detect(genres,"Action")) %>%
+  left_join(b_i, by = "movieId") %>%
+  left_join(b_u, by = "userId") %>%
+  left_join(b_g, by = "genres") %>%
+  mutate(pred = mu + b_i + b_u + b_g) %>% 
+  arrange(-pred) %>%
+  distinct(title) %>%
+  head(20)
+```
+**Comedy:**
+```{r message=FALSE, out.width='90%'}
+movielens %>% 
+  filter(str_detect(genres,"Comedy")) %>%
+  filter(sum(rating) >= 10000) %>%
+  left_join(b_i, by = "movieId") %>%
+  left_join(b_u, by = "userId") %>%
+  left_join(b_g, by = "genres") %>%
+  mutate(pred = mu + b_i + b_u + b_g) %>% 
+  arrange(-pred) %>%
+  distinct(title) %>%
+  head(20)
+```
+**Documentary:**
+```{r message=FALSE, out.width='90%'}
+movielens %>% 
+  filter(str_detect(genres,"Documentary")) %>%
+  filter(sum(rating) >= 10000) %>%
+  left_join(b_i, by = "movieId") %>%
+  left_join(b_u, by = "userId") %>%
+  left_join(b_g, by = "genres") %>%
+  mutate(pred = mu + b_i + b_u + b_g) %>% 
+  arrange(-pred) %>%
+  distinct(title) %>%
+  head(20)
+```
+
+# Results
+
+The results from this movie recommender system project were highly successful.  Using several iterations of RMSE analysis, the value was decreased substantially to provide more accurate predictions from the movie data.  Movie predictions were evident through the demonstration of movie choices both before and after the RMSE was optimized.  The final movie recommender system appeared to have a couple outliers, which were not rated with 5 stars.   
+
+```{r}
+rmses
+```
+# Conclusion
+
+The process of building the recommendation system began with exploring the data content, then recognizing how this data could be used to better filter and create a recommendation system.  Utilizing a variety of movie bias effects and regularization, this project demonstrated an iterative approach to making small improvements to the RMSE, which resulted in significant improvements to the recommendations. 
+
+# Limitations
+Although this recommendation system was optimized to an initial level of satisfaction for this project, there are many other methods that could be used to increase the effectiveness of this system.  Limitations of this system can consider additional measurements of loss functions, uses of regularization, and also considering matrix factorization to reduce the RMSE. 
+
+Furthermore, there are other characteristics that could be considered for evaluation, such as filtering outliers, as well as using some of the other larger data sets which include tags, actors, and other detailed information.
+
+# Future Work
+Although this project was a success, this type of recommender system could be tuned and scaled for use with other types of data sets, as well as the ability to use other types of machine learning and analysis packages that are available.
+
+It's showtime!
+```{r warning=TRUE, message=FALSE, out.width='100%', fig.align = 'center', echo=FALSE}
+knitr::include_graphics("01-Images/theatre.jpg", dpi = 150)
+```
+
+# References {-}
+1. Irizarry, R. "Introduction To Data Science", 2019. [online] Available: rafalab.github.io/dsbook.
+1. Leskovec, J., Rajaraman, A. and Ullman, J. "Mining of Massive Datasets", 2nd ed. pp.319-350, 2014.
+1. Koren, Y. "The BellKor Solution to the Netflix Grand Prize", 2009. [online] Available: www.netflixprize.com/assets/GrandPrize2009_BPC_BellKor.pdf.
+1. Lohr, S. "Netflix Awards $1 Million Prize and Starts a New Contest. In: The New York Times", 2009. [online] Available: bits.blogs.nytimes.com/2009/09/21/netflix-awards-1-million-prize-and-starts-a-new-contest. 
+1. “MovieLens 10M Dataset”, GroupLens, 2019. [online] Available: 
+grouplens.org/datasets/movielens/10m/.
+1. Grover, Prince. “5 Regression Loss Functions All Machine Learners Should Know.” Medium, Heartbeat, 2020. [online] Available: heartbeat.fritz.ai/5-regression-loss-functions-all-machine-learners-should-know-4fb140e9d4b0.
+1. Parmar, Ravindra. “Common Loss Functions in Machine Learning”, Medium, Towards Data Science, 2 Sept. 2018. [online] Available: towardsdatascience.com/common-loss-functions-in-machine-learning-46af0ffc4d23.
+1. Sobrado, Daniel. “Loss Functions: MAE, MAPE, MSE, RMSE and RMSLE”, Danielsobrado.com, 23 July 2016. [online] Available:  danielsobrado.com/post/loss-functions-mae-mape-mse-rmse-and-rmsle/.
+
+# Keywords:
+
+Big data, correlation, data analysis, data science, data visualization, large data set, machine learning, movie effects, movie recommendation, recommender system, regression loss, Residual Mean Squared Error (RMSE), statistics.
+
+# Attribution-NonCommercial-ShareAlike 4.0 International
+
+Creative Commons Corporation ("Creative Commons") is not a law firm and does not provide legal services or legal advice. Distribution of Creative Commons public licenses does not create a lawyer-client or other relationship. Creative Commons makes its licenses and related information available on an "as-is" basis. Creative Commons gives no warranties regarding its licenses, any material licensed under their terms and conditions, or any related information. Creative Commons disclaims all liability for damages resulting from their use to the fullest extent possible.
+
+Using Creative Commons Public Licenses
+
+Creative Commons public licenses provide a standard set of terms and conditions that creators and other rights holders may use to share original works of authorship and other material subject to copyright and certain other rights specified in the public license below. The following considerations are for informational purposes only, are not exhaustive, and do not form part of our licenses.
+
+Considerations for licensors: Our public licenses are intended for use by those authorized to give the public permission to use material in ways otherwise restricted by copyright and certain other rights. Our licenses are irrevocable. Licensors should read and understand the terms and conditions of the license they choose before applying it.  Licensors should also secure all rights necessary before applying our licenses so that the public can reuse the material as expected. Licensors should clearly mark any material not subject to the license. This includes other CC-licensed material, or material used under an exception or limitation to copyright. More considerations for licensors:
+
+wiki.creativecommons.org/Considerations_for_licensors
+Considerations for the public: By using one of our public licenses, a licensor grants the public permission to use the licensed material under specified terms and conditions. If the licensor's permission is not necessary for any reason—for example, because of any applicable exception or limitation to copyright--then that use is not regulated by the license. Our licenses grant only permissions under copyright and certain other rights that a licensor has authority to grant. Use of the licensed material may still be restricted for other reasons, including because others have copyright or other rights in the material. A licensor may make special requests, such as asking that all changes be marked or described. Although not required by our licenses, you are encouraged to respect those requests where reasonable. More considerations for the public:
+wiki.creativecommons.org/Considerations_for_licensees
+
+=======================================================================
+
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+Public License
+
+By exercising the Licensed Rights (defined below), You accept and agree to be bound by the terms and conditions of this Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International Public License ("Public License"). To the extent this Public License may be interpreted as a contract, You are granted the Licensed Rights in consideration of Your acceptance of these terms and conditions, and the Licensor grants You such rights in consideration of benefits the Licensor receives from making the Licensed Material available under these terms and conditions.
+
+Section 1 -- Definitions.
+
+  a. Adapted Material means material subject to Copyright and Similar Rights that is derived from or based upon the Licensed Material and in which the Licensed Material is translated, altered, arranged, transformed, or otherwise modified in a manner requiring permission under the Copyright and Similar Rights held by the Licensor. For purposes of this Public License, where the Licensed Material is a musical work, performance, or sound recording, Adapted Material is always produced where the Licensed Material is synced in timed relation with a moving image.
+
+  b. Adapter's License means the license You apply to Your Copyright and Similar Rights in Your contributions to Adapted Material in accordance with the terms and conditions of this Public License.
+
+  c. BY-NC-SA Compatible License means a license listed at creativecommons.org/compatiblelicenses, approved by Creative Commons as essentially the equivalent of this Public License.
+
+  d. Copyright and Similar Rights means copyright and/or similar rights closely related to copyright including, without limitation, performance, broadcast, sound recording, and Sui Generis Database      Rights, without regard to how the rights are labeled or categorized. For purposes of this Public License, the rights specified in Section 2(b)(1)-(2) are not Copyright and Similar Rights.
+
+  e. Effective Technological Measures means those measures that, in the absence of proper authority, may not be circumvented under laws fulfilling obligations under Article 11 of the WIPO Copyright      Treaty adopted on December 20, 1996, and/or similar international agreements.
+
+  f. Exceptions and Limitations means fair use, fair dealing, and/or any other exception or limitation to Copyright and Similar Rights that applies to Your use of the Licensed Material.
+
+  g. License Elements means the license attributes listed in the name of a Creative Commons Public License. The License Elements of this Public License are Attribution, NonCommercial, and ShareAlike.
+
+  h. Licensed Material means the artistic or literary work, database, other material to which the Licensor applied this Public License.
+
+  i. Licensed Rights means the rights granted to You subject to the terms and conditions of this Public License, which are limited to all Copyright and Similar Rights that apply to Your use of the Licensed Material and that the Licensor has authority to license.
+
+  j. Licensor means the individual(s) or entity(ies) granting rights under this Public License.
+
+  k. NonCommercial means not primarily intended for or directed towards commercial advantage or monetary compensation. For purposes of this Public License, the exchange of the Licensed Material for      other material subject to Copyright and Similar Rights by digital file-sharing or similar means is NonCommercial provided there is no payment of monetary compensation in connection with the exchange.
+
+  l. Share means to provide material to the public by any means or process that requires permission under the Licensed Rights, such as reproduction, public display, public performance, distribution,     dissemination, communication, or importation, and to make material available to the public including in ways that members of the may access the material from a place and at a time individually chosen by them.
+
+  m. Sui Generis Database Rights means rights other than copyright resulting from Directive 96/9/EC of the European Parliament and of the Council of 11 March 1996 on the legal protection of databases, as amended and/or succeeded, as well as other essentially equivalent rights anywhere in the world.
+
+  n. You means the individual or entity exercising the Licensed Rights under this Public License. Your has a corresponding meaning.
+
+Section 2 -- Scope.
+
+  a. License grant.
+
+       1. Subject to the terms and conditions of this Public License, Licensor hereby grants You a worldwide, royalty-free, non-sublicensable, non-exclusive, irrevocable license to exercise the Licensed Rights in the Licensed Material to:
+
+            a. reproduce and Share the Licensed Material, in whole or in part, for NonCommercial purposes only; and
+
+            b. produce, reproduce, and Share Adapted Material for NonCommercial purposes only.
+
+       2. Exceptions and Limitations. For the avoidance of doubt, where Exceptions and Limitations apply to Your use, this Public License does not apply, and You do not need to comply with its terms and conditions.
+
+       3. Term. The term of this Public License is specified in Section 6(a).
+
+       4. Media and formats; technical modifications allowed. The Licensor authorizes You to exercise the Licensed Rights in all media and formats whether now known or hereafter created, to make technical modifications necessary to do so. The Licensor waives and/or agrees not to assert any right or authority to forbid You from making technical modifications necessary to exercise the Licensed Rights, including           technical modifications necessary to circumvent Effective Technological Measures. For purposes of this Public License, making modifications authorized by this Section 2(a) (4) never produces Adapted Material.
+
+       5. Downstream recipients.
+
+            a. Offer from the Licensor -- Licensed Material. Every recipient of the Licensed Material automatically receives an offer from the Licensor to exercise the Licensed Rights under the terms and conditions of this Public License.
+
+            b. Additional offer from the Licensor -- Adapted Material.  Every recipient of Adapted Material from You automatically receives an offer from the Licensor to exercise the Licensed Rights in the Adapted Material under the conditions of the Adapter's License You apply.
+
+            c. No downstream restrictions. You may not offer or impose any additional or different terms or conditions on, or apply any Effective Technological Measures to, the Licensed Material if doing so restricts exercise of the Licensed Rights by any recipient of the Licensed Material.
+
+       6. No endorsement. Nothing in this Public License constitutes or may be construed as permission to assert or imply that You are, or that Your use of the Licensed Material is, connected with, or sponsored, endorsed, or granted official status by, Licensor or others designated to receive attribution as           provided in Section 3(a)(1)(A)(i).
+
+  b. Other rights.
+
+       1. Moral rights, such as the right of integrity, are not licensed under this Public License, nor are publicity, privacy, and/or other similar personality rights; however, to the extent possible, the Licensor waives and/or agrees not to assert any such rights held by the Licensor to the limited extent necessary to allow You to exercise the Licensed Rights, but not otherwise.
+
+       2. Patent and trademark rights are not licensed under this Public License.
+
+       3. To the extent possible, the Licensor waives any right to collect royalties from You for the exercise of the Licensed Rights, whether directly or through a collecting society under any voluntary or waivable statutory or compulsory licensing scheme. In all other cases the Licensor expressly reserves any right to collect such royalties, including when the Licensed Material is used other than for NonCommercial purposes.
+
+Section 3 -- License Conditions.
+
+Your exercise of the Licensed Rights is expressly made subject to the following conditions.
+
+  a. Attribution.
+
+       1. If You Share the Licensed Material (including in modified form), You must:
+
+            a. retain the following if it is supplied by the Licensor with the Licensed Material:
+
+                 i. identification of the creator(s) of the Licensed Material and any others designated to receive                     attribution, in any reasonable manner requested by the Licensor (including by pseudonym if                     designated);
+
+                ii. a copyright notice;
+
+               iii. a notice that refers to this Public License;
+
+                iv. a notice that refers to the disclaimer of
+                    warranties;
+
+                 v. a URI or hyperlink to the Licensed Material to the
+                    extent reasonably practicable;
+
+            b. indicate if You modified the Licensed Material and retain an indication of any previous modifications; and
+
+            c. indicate the Licensed Material is licensed under this Public License, and include the text of, or the URI or hyperlink to, this Public License.
+
+       2. You may satisfy the conditions in Section 3(a)(1) in any reasonable manner based on the medium, means, and context in which You Share the Licensed Material. For example, it may be reasonable to satisfy the conditions by providing a URI or hyperlink to a resource that includes the required           information.
+       3. If requested by the Licensor, You must remove any of the information required by Section 3(a)(1)(A) to the extent reasonably practicable.
+
+  b. ShareAlike.
+
+     In addition to the conditions in Section 3(a), if You Share Adapted Material You produce, the following conditions also apply.
+
+       1. The Adapter's License You apply must be a Creative Commons license with the same License Elements, this version or later, or a BY-NC-SA Compatible License.
+
+       2. You must include the text of, or the URI or hyperlink to, the Adapter's License You apply. You may satisfy this condition in any reasonable manner based on the medium, means, and context in which You Share Adapted Material.
+
+       3. You may not offer or impose any additional or different terms conditions on, or apply any Effective Technological Measures to, Adapted Material that restrict exercise of the rights granted under the Adapter's License You apply.
+
+Section 4 -- Sui Generis Database Rights.
+
+Where the Licensed Rights include Sui Generis Database Rights that apply to Your use of the Licensed Material:
+
+  a. for the avoidance of doubt, Section 2(a)(1) grants You the right to extract, reuse, reproduce, and Share all or a substantial portion of the contents of the database for NonCommercial purposes only;
+
+  b. if You include all or a substantial portion of the database contents in a database in which You have Sui Generis Database Rights, then the database in which You have Sui Generis Database Rights (but not its individual contents) is Adapted Material, including for purposes of Section 3(b); and
+  c. You must comply with the conditions in Section 3(a) if You Share or a substantial portion of the contents of the database.
+
+For the avoidance of doubt, this Section 4 supplements and does not replace Your obligations under this Public License where the Licensed Rights include other Copyright and Similar Rights.
+
+Section 5 -- Disclaimer of Warranties and Limitation of Liability.
+
+  a. UNLESS OTHERWISE SEPARATELY UNDERTAKEN BY THE LICENSOR, TO THE EXTENT POSSIBLE, THE LICENSOR OFFERS THE LICENSED MATERIAL AS-IS AND AS-AVAILABLE, AND MAKES NO REPRESENTATIONS OR WARRANTIES OF ANY KIND CONCERNING THE LICENSED MATERIAL, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHER. THIS INCLUDES, WITHOUT LIMITATION, WARRANTIES OF TITLE, MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, ABSENCE OF LATENT OR OTHER DEFECTS, ACCURACY, OR THE PRESENCE OR ABSENCE OF ERRORS, WHETHER OR NOT     KNOWN OR DISCOVERABLE. WHERE DISCLAIMERS OF WARRANTIES ARE NOT ALLOWED IN FULL OR IN PART, THIS DISCLAIMER MAY NOT APPLY TO YOU.
+
+  b. TO THE EXTENT POSSIBLE, IN NO EVENT WILL THE LICENSOR BE LIABLE TO YOU ON ANY LEGAL THEORY (INCLUDING, WITHOUT LIMITATION, NEGLIGENCE) OR OTHERWISE FOR ANY DIRECT, SPECIAL, INDIRECT, INCIDENTAL, CONSEQUENTIAL, PUNITIVE, EXEMPLARY, OR OTHER LOSSES, COSTS, EXPENSES, OR DAMAGES ARISING OUT OF THIS PUBLIC LICENSE OR USE OF THE LICENSED MATERIAL, EVEN IF THE LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH LOSSES, COSTS, EXPENSES, OR DAMAGES. WHERE A LIMITATION OF LIABILITY IS NOT ALLOWED IN FULL OR IN PART, THIS LIMITATION MAY NOT APPLY TO YOU.
+
+  c. The disclaimer of warranties and limitation of liability provided above shall be interpreted in a manner that, to the extent possible, most closely approximates an absolute disclaimer and waiver of all liability.
+
+Section 6 -- Term and Termination.
+
+  a. This Public License applies for the term of the Copyright and Similar Rights licensed here. However, if You fail to comply with this Public License, then Your rights under this Public License terminate automatically.
+
+  b. Where Your right to use the Licensed Material has terminated under Section 6(a), it reinstates:
+
+       1. automatically as of the date the violation is cured, provided it is cured within 30 days of Your discovery of the violation; or
+
+       2. upon express reinstatement by the Licensor.
+
+     For the avoidance of doubt, this Section 6(b) does not affect any right the Licensor may have to seek remedies for Your violations of this Public License.
+
+  c. For the avoidance of doubt, the Licensor may also offer the Licensed Material under separate terms or conditions or stop distributing the Licensed Material at any time; however, doing so will not terminate this Public License.
+
+  d. Sections 1, 5, 6, 7, and 8 survive termination of this Public License.
+
+Section 7 -- Other Terms and Conditions.
+
+  a. The Licensor shall not be bound by any additional or different terms or conditions communicated by You unless expressly agreed.
+
+  b. Any arrangements, understandings, or agreements regarding the Licensed Material not stated herein are separate from and independent of the terms and conditions of this Public License.
+
+Section 8 -- Interpretation.
+
+  a. For the avoidance of doubt, this Public License does not, and shall not be interpreted to, reduce, limit, restrict, or impose conditions on any use of the Licensed Material that could lawfully be made without permission under this Public License.
+
+  b. To the extent possible, if any provision of this Public License is deemed unenforceable, it shall be automatically reformed to the minimum extent necessary to make it enforceable. If the provision      cannot be reformed, it shall be severed from this Public License without affecting the enforceability of the remaining terms and conditions.
+
+  c. No term or condition of this Public License will be waived and no failure to comply consented to unless expressly agreed to by the Licensor.
+
+  d. Nothing in this Public License constitutes or may be interpreted as a limitation upon, or waiver of, any privileges and immunities that apply to the Licensor or You, including from the legal processes of any jurisdiction or authority.
+
+=======================================================================
+
+Creative Commons is not a party to its public licenses. Notwithstanding, Creative Commons may elect to apply one of its public licenses to material it publishes and in those instances will be considered the “Licensor.” The text of the Creative Commons public licenses is dedicated to the public domain under the CC0 Public Domain Dedication. Except for the limited purpose of indicating that material is shared under a Creative Commons public license or as otherwise permitted by the Creative Commons policies published at creativecommons.org/policies, Creative Commons does not authorize the use of the trademark "Creative Commons" or any other trademark or logo of Creative Commons without its prior written consent including, without limitation, in connection with any unauthorized modifications to any of its public licenses or any other arrangements, understandings, or agreements concerning use of licensed material. For the avoidance of doubt, this paragraph does not form part of the public licenses.
+
+Creative Commons may be contacted at creativecommons.org.
+```{r fig.show = "hold", out.width = "40%", fig.align = "center", echo=FALSE}
+knitr::include_graphics("01-Images/CC-BY-NC-SA-Image.jpg", dpi = 150) 
+```
+
+This data may also be protected by the California Consumer Privacy Act (CCPA) and other legal restriction depending upon your jurisdiction.
